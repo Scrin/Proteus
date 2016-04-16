@@ -4,6 +4,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 public abstract class Oids {
+    
+    final static String sysDescr = "1.3.6.1.2.1.1.1";
 
     final static String ifName = "1.3.6.1.2.1.31.1.1.1.1";
     final static String ifDescr = "1.3.6.1.2.1.2.2.1.2";

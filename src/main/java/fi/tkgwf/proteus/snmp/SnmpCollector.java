@@ -1,5 +1,6 @@
 package fi.tkgwf.proteus.snmp;
 
+import com.sun.org.apache.bcel.internal.generic.AALOAD;
 import fi.tkgwf.proteus.service.SnmpService;
 import io.prometheus.client.Collector;
 import java.io.IOException;
@@ -11,6 +12,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.snmp4j.smi.Variable;
 
 public class SnmpCollector extends Collector {
@@ -28,6 +31,7 @@ public class SnmpCollector extends Collector {
         Map<String, Long> durations = new HashMap<>();
         for (SnmpTarget target : targets) {
             long roundStart = System.currentTimeMillis();
+            list.add(measureLatency(target));
             Map<Integer, String> interfaces = walkNames(target, Oids.ifName);
             if (interfaces.isEmpty()) {
                 interfaces = walkNames(target, Oids.ifDescr); // fallback to description if the names are not available
@@ -52,6 +56,23 @@ public class SnmpCollector extends Collector {
         list.addAll(parseDurationValues(durations));
 //        System.out.println("Metrics collected in: " + ((System.currentTimeMillis() - start) / 1000.0d) + " s");
         return combineEntries(list);
+    }
+
+    private Entry<String, List<Collector.MetricFamilySamples.Sample>> measureLatency(SnmpTarget target) {
+        long start = System.currentTimeMillis();
+        try {
+            SnmpService.getOid(target, Oids.sysDescr);
+        } catch (IOException ex) {
+            return new SimpleEntry("latency", new LinkedList());
+        }
+        long duration = System.currentTimeMillis() - start;
+        List<Collector.MetricFamilySamples.Sample> samples = new LinkedList<>();
+        List<String> labels = new LinkedList<>();
+        List<String> labelValues = new LinkedList<>();
+        labels.add("host");
+        labelValues.add(target.getHost());
+        samples.add(new MetricFamilySamples.Sample("latency", labels, labelValues, duration));
+        return new SimpleEntry("latency", samples);
     }
 
     private Entry<String, List<Collector.MetricFamilySamples.Sample>> parseInterfaceValues(SnmpTarget target, Map<Integer, String> interfaces, Map<Integer, Long> values, String name) {

@@ -26,6 +26,32 @@ import org.snmp4j.util.TreeUtils;
 
 public class SnmpService {
 
+    public static Variable getOid(SnmpTarget target, String oid) throws IOException {
+        TransportMapping transport = new DefaultUdpTransportMapping();
+        try {
+            Snmp snmp = new Snmp(transport);
+            transport.listen();
+
+            CommunityTarget communityTarget = createCommunityTarget(target);
+            PDU pdu = new PDU();
+            pdu.add(new VariableBinding(new OID(oid)));
+            pdu.setType(PDU.GET);
+            ResponseEvent responseEvent = snmp.send(pdu, communityTarget);
+            if (responseEvent == null || responseEvent.getResponse() == null) {
+                return null;
+            }
+            for (Object o : responseEvent.getResponse().getVariableBindings()) {
+                if (o instanceof VariableBinding) {
+                    return ((VariableBinding) o).getVariable();
+//                        System.out.println("        OID     " + target.address + " " + vb.getOid().toString() + " = " + vb.getVariable().getSyntaxString() + " = " + vb.getVariable().getSyntax() + " = " + vb.getVariable().toString());
+                }
+            }
+        } finally {
+            transport.close();
+        }
+        return null;
+    }
+
     /**
      * Gets values for given OIDs
      *
