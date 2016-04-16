@@ -1,0 +1,3 @@
+# SNMP hosts begin with snmp.target. folowed by the hostname/IP, value being protocol/port/SNMPversion/CommunityString
+snmp.target.crazyserver.example.com=udp/161/2c/public
+snmp.target.10.0.3.7=udp/161/1/TopSecret
