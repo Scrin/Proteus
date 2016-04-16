@@ -119,7 +119,6 @@ public class SnmpService {
             List<TreeEvent> events = treeUtils.getSubtree(communityTarget, new OID(oid));
 
             if (events == null) {
-                System.out.println("helvetti");
                 return result;
             }
             for (TreeEvent event : events) {

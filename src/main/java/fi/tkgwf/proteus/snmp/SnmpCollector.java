@@ -1,6 +1,5 @@
 package fi.tkgwf.proteus.snmp;
 
-import com.sun.org.apache.bcel.internal.generic.AALOAD;
 import fi.tkgwf.proteus.service.SnmpService;
 import io.prometheus.client.Collector;
 import java.io.IOException;
@@ -12,8 +11,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.snmp4j.smi.Variable;
 
 public class SnmpCollector extends Collector {
