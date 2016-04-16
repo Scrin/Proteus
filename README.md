@@ -7,7 +7,7 @@ Dependencies:
 * Maven (For building from sources)
 * JDK8 (For building from sources, JRE8 enough for just running the built JAR)
 
-# Building
+### Building
 
 Execute 
 
@@ -15,7 +15,7 @@ Execute
 mvn clean package
 ```
 
-# "Installation"
+### "Installation"
 
 The initscript contains a sysvinit initscript, copy it as /etc/init.d/proteus and execute 
 
@@ -29,7 +29,7 @@ Create a configuration file as /opt/proteus/proteus.properties (see proteus.prop
 
 Note: Proteus will look for proteus.properties configuration file in the directory where the JAR file itself is, and one directory above that. This means, during development, you can have your local proteus.properties file in the "root" of the project and execute the JAR directly from the Maven target directory.
 
-# Running
+### Running
 
 For "installed" version:
 
@@ -41,4 +41,17 @@ For built version (while in the "root" of the project):
 
 ```sh
 java -jar target/Proteus.jar
+```
+
+### Configuring Prometheus
+
+The following should be sufficient for promehteus.yml:
+
+```yaml
+  - job_name: 'proteus'
+    scrape_interval: 60s
+    scrape_timeout: 50s
+    target_groups:
+      - targets: ['localhost:62222']
+
 ```
