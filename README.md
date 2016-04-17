@@ -54,7 +54,7 @@ The following should be sufficient for promehteus.yml:
 ```yaml
   - job_name: 'proteus'
     scrape_interval: 60s
-    scrape_timeout: 50s
+    scrape_timeout: 55s
     target_groups:
       - targets: ['localhost:62222']
 

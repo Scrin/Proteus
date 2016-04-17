@@ -16,8 +16,11 @@ public class Main {
     private static final List<SnmpTarget> targets = new LinkedList<>();
 
     public static void main(String[] args) throws IOException, URISyntaxException {
+        // Defaults
         String hostname = "localhost";
         int port = 62222;
+        int maxSnmpThreads = 32;
+        long timeoutLimit = 50;
         // Load properties
         File jarLocation = new File(Main.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath()).getParentFile();
         File[] configFiles = jarLocation.listFiles((File f) -> f.isFile() && f.getName().equals("proteus.properties"));
@@ -42,18 +45,37 @@ public class Main {
                 String[] split = value.split("/", 4);
                 targets.add(new SnmpTarget(split[0] + ":" + key.substring(12) + "/" + split[1], split[2], split[3]));
                 System.out.println("Snmp host: " + key.substring(12));
-            } else if (key.equals("listen.host")) {
-                hostname = value;
-            } else if (key.equals("listen.port")) {
-                try {
-                    port = Integer.parseInt(value);
-                } catch (NumberFormatException ex) {
-                    System.err.println("WARNING: Invalid number format for port: '" + value + '\'');
+            } else {
+                switch (key) {
+                    case "listen.host":
+                        hostname = value;
+                        break;
+                    case "listen.port":
+                        try {
+                            port = Integer.parseInt(value);
+                        } catch (NumberFormatException ex) {
+                            System.err.println("WARNING: Invalid number format for port: '" + value + '\'');
+                        }
+                        break;
+                    case "snmp.threads":
+                        try {
+                            maxSnmpThreads = Integer.parseInt(value);
+                        } catch (NumberFormatException ex) {
+                            System.err.println("WARNING: Invalid number format for threads count: '" + value + '\'');
+                        }
+                        break;
+                    case "snmp.timeout":
+                        try {
+                            timeoutLimit = Long.parseLong(value);
+                        } catch (NumberFormatException ex) {
+                            System.err.println("WARNING: Invalid number format for timeout: '" + value + '\'');
+                        }
+                        break;
                 }
             }
         }
         // Start the exporter
-        PrometheusExporter pe = new PrometheusExporter(targets);
+        PrometheusExporter pe = new PrometheusExporter(targets, maxSnmpThreads, timeoutLimit);
         pe.start(hostname, port);
     }
 }

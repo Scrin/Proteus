@@ -1,7 +1,8 @@
-#Default listen host is localhost only, uncomment below to change
-#listen.host=0.0.0.0
-#Default listen port is 62222, uncomment below to change
-#listen.port=8080
+# Default values
+#listen.host=localhost
+#listen.port=62222
+#snmp.threads=32
+#snmp.timeout=50
 
 # SNMP hosts begin with snmp.target. folowed by the hostname/IP, value being protocol/port/SNMPversion/CommunityString
 snmp.target.crazyserver.example.com=udp/161/2c/public

@@ -4,6 +4,7 @@ import fi.tkgwf.proteus.service.SnmpService;
 import io.prometheus.client.Collector;
 import java.io.IOException;
 import java.util.AbstractMap.SimpleEntry;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -11,48 +12,77 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.snmp4j.smi.Variable;
 
 public class SnmpCollector extends Collector {
 
     private final List<SnmpTarget> targets;
+    private final int maxSnmpThreads;
+    private final long timeoutLimit;
 
-    public SnmpCollector(List<SnmpTarget> targets) {
+    public SnmpCollector(List<SnmpTarget> targets, int maxSnmpThreads, long timeoutLimit) {
         this.targets = targets;
+        this.maxSnmpThreads = maxSnmpThreads;
+        this.timeoutLimit = timeoutLimit;
     }
 
     @Override
     public List<Collector.MetricFamilySamples> collect() {
         long start = System.currentTimeMillis();
-        List<Entry<String, List<Collector.MetricFamilySamples.Sample>>> list = new LinkedList<>(); // TODO: requires rewriting after finding out Prometheus is really picky about the data format
-        Map<String, Long> durations = new HashMap<>();
+        Collection<Entry<String, List<Collector.MetricFamilySamples.Sample>>> results = new ConcurrentLinkedQueue<>(); // TODO: requires rewriting after finding out Prometheus is really picky about the data format
+        ExecutorService executor = Executors.newFixedThreadPool(maxSnmpThreads);
         for (SnmpTarget target : targets) {
+            executor.submit(new SnmpTask(target, results));
+        }
+        executor.shutdown();
+        try {
+            executor.awaitTermination(timeoutLimit, TimeUnit.SECONDS);
+        } catch (InterruptedException ex) {
+        }
+//        System.out.println("Metrics collected in: " + ((System.currentTimeMillis() - start) / 1000.0d) + " s");
+        return combineEntries(results);
+    }
+
+    private class SnmpTask implements Runnable {
+
+        private final SnmpTarget target;
+        private final Collection<Entry<String, List<Collector.MetricFamilySamples.Sample>>> coll;
+
+        public SnmpTask(SnmpTarget target, Collection<Entry<String, List<MetricFamilySamples.Sample>>> coll) {
+            this.target = target;
+            this.coll = coll;
+        }
+
+        @Override
+        public void run() {
             long roundStart = System.currentTimeMillis();
-            list.add(measureLatency(target));
+            coll.add(measureLatency(target));
             Map<Integer, String> interfaces = walkNames(target, Oids.ifName);
             if (interfaces.isEmpty()) {
                 interfaces = walkNames(target, Oids.ifDescr); // fallback to description if the names are not available
             }
-            list.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifHCInOctets, Oids.ifInOctets), "ifInOctets"));
-            list.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifHCOutOctets, Oids.ifOutOctets), "ifOutOctets"));
-            list.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifHCInUcastPkts, Oids.ifInUcastPkts), "ifInUnicastPkts"));
-            list.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifHCOutUcastPkts, Oids.ifOutUcastPkts), "ifOutUnicastPkts"));
-            list.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifInDiscards), "ifInDiscards"));
-            list.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifOutDiscards), "ifOutDiscards"));
-            list.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifInErrors), "ifInErrors"));
-            list.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifOutErrors), "ifOutErrors"));
-            list.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifInUnknownProtos), "ifInUnknownProtos"));
-            list.addAll(parseSingleValues(target, Oids.udpOids));
-            list.addAll(parseSingleValues(target, Oids.tcpOids));
-            list.addAll(parseSingleValues(target, Oids.icmpOids));
-            list.addAll(parseSingleValues(target, Oids.hrSystemOids));
-            list.addAll(parseDiskValues(target));
-            list.addAll(parseCpuUsage(target));
-            durations.put(target.getHost(), System.currentTimeMillis() - roundStart);
+            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifHCInOctets, Oids.ifInOctets), "ifInOctets"));
+            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifHCOutOctets, Oids.ifOutOctets), "ifOutOctets"));
+            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifHCInUcastPkts, Oids.ifInUcastPkts), "ifInUnicastPkts"));
+            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifHCOutUcastPkts, Oids.ifOutUcastPkts), "ifOutUnicastPkts"));
+            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifInDiscards), "ifInDiscards"));
+            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifOutDiscards), "ifOutDiscards"));
+            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifInErrors), "ifInErrors"));
+            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifOutErrors), "ifOutErrors"));
+            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifInUnknownProtos), "ifInUnknownProtos"));
+            coll.addAll(parseSingleValues(target, Oids.udpOids));
+            coll.addAll(parseSingleValues(target, Oids.tcpOids));
+            coll.addAll(parseSingleValues(target, Oids.icmpOids));
+            coll.addAll(parseSingleValues(target, Oids.hrSystemOids));
+            coll.addAll(parseDiskValues(target));
+            coll.addAll(parseCpuUsage(target));
+            coll.add(parseDurationValue(target.getHost(), System.currentTimeMillis() - roundStart));
         }
-        list.addAll(parseDurationValues(durations));
-//        System.out.println("Metrics collected in: " + ((System.currentTimeMillis() - start) / 1000.0d) + " s");
-        return combineEntries(list);
+
     }
 
     private Entry<String, List<Collector.MetricFamilySamples.Sample>> measureLatency(SnmpTarget target) {
@@ -173,18 +203,14 @@ public class SnmpCollector extends Collector {
         return result;
     }
 
-    private List<Entry<String, List<Collector.MetricFamilySamples.Sample>>> parseDurationValues(Map<String, Long> hosts) {
-        List<Entry<String, List<Collector.MetricFamilySamples.Sample>>> result = new LinkedList<>();
+    private Entry<String, List<Collector.MetricFamilySamples.Sample>> parseDurationValue(String host, long time) {
         List<Collector.MetricFamilySamples.Sample> samples = new LinkedList<>();
-        for (Entry<String, Long> entry : hosts.entrySet()) {
-            List<String> labels = new LinkedList<>();
-            List<String> labelValues = new LinkedList<>();
-            labels.add("host");
-            labelValues.add(entry.getKey());
-            samples.add(new Collector.MetricFamilySamples.Sample("pollerExecutionDuration", labels, labelValues, entry.getValue()));
-        }
-        result.add(new SimpleEntry("pollerExecutionDuration", samples));
-        return result;
+        List<String> labels = new LinkedList<>();
+        List<String> labelValues = new LinkedList<>();
+        labels.add("host");
+        labelValues.add(host);
+        samples.add(new Collector.MetricFamilySamples.Sample("pollerExecutionDuration", labels, labelValues, time));
+        return new SimpleEntry("pollerExecutionDuration", samples);
     }
 
     /**
@@ -292,9 +318,9 @@ public class SnmpCollector extends Collector {
         }
     }
 
-    private List<Collector.MetricFamilySamples> combineEntries(List<Entry<String, List<Collector.MetricFamilySamples.Sample>>> list) {
+    private List<Collector.MetricFamilySamples> combineEntries(Collection<Entry<String, List<Collector.MetricFamilySamples.Sample>>> coll) {
         Map<String, List<Collector.MetricFamilySamples.Sample>> map = new HashMap<>();
-        for (Entry<String, List<MetricFamilySamples.Sample>> e : list) {
+        for (Entry<String, List<MetricFamilySamples.Sample>> e : coll) {
             List<MetricFamilySamples.Sample> existing = map.get(e.getKey());
             if (existing == null) {
                 map.put(e.getKey(), e.getValue());

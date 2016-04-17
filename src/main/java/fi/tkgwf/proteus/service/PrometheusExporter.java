@@ -12,9 +12,13 @@ import org.eclipse.jetty.servlet.ServletHolder;
 public class PrometheusExporter {
 
     private final List<SnmpTarget> targets;
+    private final int maxSnmpThreads;
+    private final long timeoutLimit;
 
-    public PrometheusExporter(List<SnmpTarget> targets) {
+    public PrometheusExporter(List<SnmpTarget> targets, int maxSnmpThreads, long timeoutLimit) {
         this.targets = targets;
+        this.maxSnmpThreads = maxSnmpThreads;
+        this.timeoutLimit = timeoutLimit;
     }
 
     public void start(String hostname, int port) {
@@ -24,7 +28,7 @@ public class PrometheusExporter {
         server.setHandler(context);
         context.addServlet(new ServletHolder(new MetricsServlet()), "/metrics");
 
-        SnmpCollector c = new SnmpCollector(targets);
+        SnmpCollector c = new SnmpCollector(targets, maxSnmpThreads, timeoutLimit);
 
         c.register();
         try {
