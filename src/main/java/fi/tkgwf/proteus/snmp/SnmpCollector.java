@@ -127,8 +127,11 @@ public class SnmpCollector extends Collector {
                     List<String> labelValues = new LinkedList<>();
                     labels.add("host");
                     labelValues.add(target.getHost());
-                    samples.add(new Collector.MetricFamilySamples.Sample(oidsNames.get(entry.getKey()), labels, labelValues, entry.getValue().toLong()));
-                    result.add(new SimpleEntry(oidsNames.get(entry.getKey()), samples));
+                    String name = oidsNames.get(entry.getKey());
+                    samples.add(new Collector.MetricFamilySamples.Sample(name, labels, labelValues,
+                            // super ghettohack to get uptime as normal milliseconds instead of retarded centiseconds
+                            name.equals("hrSystemUptime") ? entry.getValue().toLong() * 10 : entry.getValue().toLong()));
+                    result.add(new SimpleEntry(name, samples));
                 }
             }
         } catch (IOException ex) {
