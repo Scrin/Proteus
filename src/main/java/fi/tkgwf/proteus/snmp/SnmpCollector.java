@@ -132,6 +132,9 @@ public class SnmpCollector extends Collector {
                 if (diskName.startsWith("MALLOC: ") || diskName.startsWith("UMA: ")) { // Some weird shits we're not interested in
                     continue;
                 }
+                if (diskName.length() >= 3 && diskName.charAt(1) == ':' && diskName.charAt(2) == '\\') {
+                    diskName = "Disk " + diskName.substring(0, 1); // Windows disks, custom name format, the backslashes cause havoc otherwise
+                }
                 List<String> labels = new LinkedList<>();
                 List<String> labelValues = new LinkedList<>();
                 labels.add("host");
