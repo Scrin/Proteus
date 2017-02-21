@@ -20,6 +20,8 @@ import org.snmp4j.smi.Variable;
 
 public class SnmpCollector extends Collector {
 
+    public static final String MEASUREMENT_PREFIX = "snmp_";
+
     private final List<SnmpTarget> targets;
     private final int maxSnmpThreads;
     private final long timeoutLimit;
@@ -44,7 +46,7 @@ public class SnmpCollector extends Collector {
         } catch (InterruptedException ex) {
         }
 //        System.out.println("Metrics collected in: " + ((System.currentTimeMillis() - start) / 1000.0d) + " s");
-        return combineEntries(results);
+        return finalizeEntries(results);
     }
 
     private class SnmpTask implements Runnable {
@@ -65,15 +67,15 @@ public class SnmpCollector extends Collector {
             if (interfaces.isEmpty()) {
                 interfaces = walkNames(target, Oids.ifDescr); // fallback to description if the names are not available
             }
-            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifHCInOctets, Oids.ifInOctets), "ifInOctets"));
-            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifHCOutOctets, Oids.ifOutOctets), "ifOutOctets"));
-            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifHCInUcastPkts, Oids.ifInUcastPkts), "ifInUnicastPkts"));
-            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifHCOutUcastPkts, Oids.ifOutUcastPkts), "ifOutUnicastPkts"));
-            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifInDiscards), "ifInDiscards"));
-            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifOutDiscards), "ifOutDiscards"));
-            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifInErrors), "ifInErrors"));
-            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifOutErrors), "ifOutErrors"));
-            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifInUnknownProtos), "ifInUnknownProtos"));
+            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifHCInOctets, Oids.ifInOctets), MEASUREMENT_PREFIX + "ifInOctets"));
+            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifHCOutOctets, Oids.ifOutOctets), MEASUREMENT_PREFIX + "ifOutOctets"));
+            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifHCInUcastPkts, Oids.ifInUcastPkts), MEASUREMENT_PREFIX + "ifInUnicastPkts"));
+            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifHCOutUcastPkts, Oids.ifOutUcastPkts), MEASUREMENT_PREFIX + "ifOutUnicastPkts"));
+            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifInDiscards), MEASUREMENT_PREFIX + "ifInDiscards"));
+            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifOutDiscards), MEASUREMENT_PREFIX + "ifOutDiscards"));
+            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifInErrors), MEASUREMENT_PREFIX + "ifInErrors"));
+            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifOutErrors), MEASUREMENT_PREFIX + "ifOutErrors"));
+            coll.add(parseInterfaceValues(target, interfaces, getValuesForWalkedOids(target, interfaces.keySet(), Oids.ifInUnknownProtos), MEASUREMENT_PREFIX + "ifInUnknownProtos"));
             coll.addAll(parseSingleValues(target, Oids.udpOids));
             coll.addAll(parseSingleValues(target, Oids.tcpOids));
             coll.addAll(parseSingleValues(target, Oids.icmpOids));
@@ -90,7 +92,7 @@ public class SnmpCollector extends Collector {
         try {
             SnmpService.getOid(target, Oids.sysDescr);
         } catch (IOException ex) {
-            return new SimpleEntry("latency", new LinkedList());
+            return new SimpleEntry(MEASUREMENT_PREFIX + "latency", new LinkedList());
         }
         long duration = System.currentTimeMillis() - start;
         List<Collector.MetricFamilySamples.Sample> samples = new LinkedList<>();
@@ -98,8 +100,8 @@ public class SnmpCollector extends Collector {
         List<String> labelValues = new LinkedList<>();
         labels.add("host");
         labelValues.add(target.getHost());
-        samples.add(new MetricFamilySamples.Sample("latency", labels, labelValues, duration));
-        return new SimpleEntry("latency", samples);
+        samples.add(new MetricFamilySamples.Sample(MEASUREMENT_PREFIX + "latency", labels, labelValues, duration));
+        return new SimpleEntry(MEASUREMENT_PREFIX + "latency", samples);
     }
 
     private Entry<String, List<Collector.MetricFamilySamples.Sample>> parseInterfaceValues(SnmpTarget target, Map<Integer, String> interfaces, Map<Integer, Long> values, String name) {
@@ -137,9 +139,9 @@ public class SnmpCollector extends Collector {
                 labels.add("disk");
                 labelValues.add(diskName);
                 Long value = walkedValues.get(e.getKey()) * diskAllocSizes.get(e.getKey());
-                samples.add(new Collector.MetricFamilySamples.Sample(oidGroup.getValue(), labels, labelValues, value));
+                samples.add(new Collector.MetricFamilySamples.Sample(MEASUREMENT_PREFIX + oidGroup.getValue(), labels, labelValues, value));
             }
-            result.add(new SimpleEntry(oidGroup.getValue(), samples));
+            result.add(new SimpleEntry(MEASUREMENT_PREFIX + oidGroup.getValue(), samples));
         }
         return result;
     }
@@ -157,10 +159,10 @@ public class SnmpCollector extends Collector {
                     List<String> labelValues = new LinkedList<>();
                     labels.add("host");
                     labelValues.add(target.getHost());
-                    String name = oidsNames.get(entry.getKey());
+                    String name = MEASUREMENT_PREFIX + oidsNames.get(entry.getKey());
                     samples.add(new Collector.MetricFamilySamples.Sample(name, labels, labelValues,
                             // super ghettohack to get uptime as normal milliseconds instead of retarded centiseconds
-                            name.equals("hrSystemUptime") ? entry.getValue().toLong() * 10 : entry.getValue().toLong()));
+                            name.equals(MEASUREMENT_PREFIX + "hrSystemUptime") ? entry.getValue().toLong() * 10 : entry.getValue().toLong()));
                     result.add(new SimpleEntry(name, samples));
                 }
             }
@@ -186,7 +188,7 @@ public class SnmpCollector extends Collector {
             labelValues.add("core");
             labels.add("core");
             labelValues.add(String.valueOf(coreNumber));
-            samples.add(new Collector.MetricFamilySamples.Sample("hrProcessorLoad", labels, labelValues, walkedValues.get(i)));
+            samples.add(new Collector.MetricFamilySamples.Sample(MEASUREMENT_PREFIX + "hrProcessorLoad", labels, labelValues, walkedValues.get(i)));
             coreNumber++;
             loadTotal += walkedValues.get(i);
         }
@@ -197,8 +199,8 @@ public class SnmpCollector extends Collector {
             labelValues.add(target.getHost());
             labels.add("type");
             labelValues.add("average");
-            samples.add(new Collector.MetricFamilySamples.Sample("hrProcessorLoad", labels, labelValues, ((double) loadTotal / (double) coreNumber)));
-            result.add(new SimpleEntry("hrProcessorLoad", samples));
+            samples.add(new Collector.MetricFamilySamples.Sample(MEASUREMENT_PREFIX + "hrProcessorLoad", labels, labelValues, ((double) loadTotal / (double) coreNumber)));
+            result.add(new SimpleEntry(MEASUREMENT_PREFIX + "hrProcessorLoad", samples));
         }
         return result;
     }
@@ -209,8 +211,8 @@ public class SnmpCollector extends Collector {
         List<String> labelValues = new LinkedList<>();
         labels.add("host");
         labelValues.add(host);
-        samples.add(new Collector.MetricFamilySamples.Sample("pollerExecutionDuration", labels, labelValues, time));
-        return new SimpleEntry("pollerExecutionDuration", samples);
+        samples.add(new Collector.MetricFamilySamples.Sample(MEASUREMENT_PREFIX + "pollerExecutionDuration", labels, labelValues, time));
+        return new SimpleEntry(MEASUREMENT_PREFIX + "pollerExecutionDuration", samples);
     }
 
     /**
@@ -318,7 +320,7 @@ public class SnmpCollector extends Collector {
         }
     }
 
-    private List<Collector.MetricFamilySamples> combineEntries(Collection<Entry<String, List<Collector.MetricFamilySamples.Sample>>> coll) {
+    private List<Collector.MetricFamilySamples> finalizeEntries(Collection<Entry<String, List<Collector.MetricFamilySamples.Sample>>> coll) {
         Map<String, List<Collector.MetricFamilySamples.Sample>> map = new HashMap<>();
         for (Entry<String, List<MetricFamilySamples.Sample>> e : coll) {
             List<MetricFamilySamples.Sample> existing = map.get(e.getKey());
@@ -330,7 +332,7 @@ public class SnmpCollector extends Collector {
         }
         List<Collector.MetricFamilySamples> result = new LinkedList<>();
         for (Entry<String, List<Collector.MetricFamilySamples.Sample>> e : map.entrySet()) {
-            result.add(new MetricFamilySamples(e.getKey(), Type.GAUGE, e.getKey(), e.getValue()));
+            result.add(new MetricFamilySamples(e.getKey(), Type.GAUGE, e.getKey().substring(MEASUREMENT_PREFIX.length()), e.getValue()));
         }
         return result;
     }
