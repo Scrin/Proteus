@@ -39,6 +39,10 @@ public class SnmpCollector extends Collector {
         ExecutorService executor = Executors.newFixedThreadPool(maxSnmpThreads);
         for (SnmpTarget target : targets) {
             executor.submit(new SnmpTask(target, results));
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException ex) {
+            }
         }
         executor.shutdown();
         try {
