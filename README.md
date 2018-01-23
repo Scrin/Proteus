@@ -49,7 +49,7 @@ java -jar target/Proteus.jar
 
 ### Configuring Prometheus
 
-The following should be sufficient for promehteus.yml:
+The following should be sufficient for prometheus.yml:
 
 ```yaml
   - job_name: 'proteus'
